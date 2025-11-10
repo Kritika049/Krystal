@@ -1,8 +1,9 @@
 package com.flipkart.krystal.vajram.codegen.plugin;
 
-import static com.flipkart.krystal.vajram.codegen.common.models.CodegenPhase.FINAL;
-import static com.flipkart.krystal.vajram.codegen.common.models.CodegenPhase.MODELS;
-import static com.flipkart.krystal.vajram.codegen.common.models.Constants.CODEGEN_PHASE_KEY;
+import static com.flipkart.krystal.codegen.common.models.CodegenPhase.FINAL;
+import static com.flipkart.krystal.codegen.common.models.CodegenPhase.MODELS;
+import static com.flipkart.krystal.codegen.common.models.Constants.CODEGEN_PHASE_KEY;
+import static com.flipkart.krystal.config.PropertyNames.RISKY_OPEN_ALL_VAJRAMS_TO_EXTERNAL_INVOCATION_PROP_NAME;
 import static com.flipkart.krystal.vajram.codegen.common.models.Constants.VAJRAM_MODELS_GEN_DIR_NAME;
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -13,6 +14,7 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
 
 public class VajramPlugin implements Plugin<Project> {
   static final String EMPTY_DIR = "tmp/empty";
@@ -29,7 +31,6 @@ public class VajramPlugin implements Plugin<Project> {
 
   @Override
   public void apply(Project project) {
-
     var mainModelsGenDir =
         new File(getBuildDir(project).getPath() + VAJRAM_MODELS_GEN_DIR + "/main");
     var mainImplsGenDir = new File(getBuildDir(project).getPath() + SRC_GEN_DIR + "/main");
@@ -44,6 +45,15 @@ public class VajramPlugin implements Plugin<Project> {
     registerTestCodeGenVajramModels(project, testModelsGenDir);
 
     project.getTasks().named("jar").configure(task -> task.dependsOn("compileJava"));
+
+    //noinspection TestOnlyProblems
+    project
+        .getTasks()
+        .withType(Test.class)
+        .named("test")
+        .configure(
+            task ->
+                task.systemProperty(RISKY_OPEN_ALL_VAJRAMS_TO_EXTERNAL_INVOCATION_PROP_NAME, true));
   }
 
   private static void addSourceSets(
@@ -56,6 +66,18 @@ public class VajramPlugin implements Plugin<Project> {
         checkNotNull(project.getExtensions().findByType(JavaPluginExtension.class)).getSourceSets();
     sourceSets.getByName("main").getJava().srcDir(mainModelsGenDir).srcDir(mainImplsGenDir);
     sourceSets.getByName("test").getJava().srcDir(testModelsGenDir).srcDir(testImplsGenDir);
+
+    // Add all source directories to compiler sourcepath option so that annotation processors can
+    // read files in custom source directories as well
+    //    project
+    //        .getTasks()
+    //        .withType(JavaCompile.class)
+    //        .configureEach(
+    //            javaCompile ->
+    //                javaCompile
+    //                    .getOptions()
+    //
+    // .setSourcepath(sourceSets.getByName("main").getJava().getSourceDirectories()));
   }
 
   private static void registerCodeGenVajramModels(Project project, File mainModelsGenDir) {
